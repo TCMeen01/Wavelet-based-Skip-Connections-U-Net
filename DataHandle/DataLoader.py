@@ -1,6 +1,6 @@
 import os
 import torch
-from torchvision import transforms
+from torchvision.transforms import transforms
 from torch.utils.data import DataLoader
 from DataHandle.Dataset import MedicalSegmentationDataset
 
@@ -121,7 +121,7 @@ def get_isic_dataloaders(root_dir, batch_size=8, img_size=256, num_workers=4):
     return train_loader, val_loader, test_loader
 
 def get_kvasir_dataloaders(root_dir, batch_size=8, img_size=256,
-                          val_size=0.1, test_size=0.1, num_workers=4):
+                          num_workers=4, val_size=0.1, test_size=0.1):
     '''
     Create and return train, validation, and test dataloaders from the given `root_dir`.
 

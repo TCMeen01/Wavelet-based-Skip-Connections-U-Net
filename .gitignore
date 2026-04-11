@@ -1,2 +1,4 @@
 /.vscode
 /Datasets
+*.pyc
+*.pth

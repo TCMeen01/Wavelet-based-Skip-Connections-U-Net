@@ -1,9 +1,10 @@
+import torch
 from torch import nn
 from Wavelet.DWT import DWTransform
 from Wavelet.DTCWT import DTCWTransform
 from Unet.Unet_parts import ConvBlock, Encoder, Decoder
 
-class WTSC_UNet(nn.Module):
+class DWTSC_UNet(nn.Module):
     list_channels = [64, 128, 256, 512, 1024]
 
     def __init__(self, n_channels, n_classes) -> None:
@@ -18,17 +19,24 @@ class WTSC_UNet(nn.Module):
         self.in_conv = ConvBlock(n_channels, self.list_channels[0])
 
         # Initialize the list of Encoders
-        self.enc = nn.ModuleList()
-        for i in range(1, len(self.list_channels)):
-            self.enc.append(Encoder(self.list_channels[i-1], self.list_channels[i]))
+        self.enc = nn.ModuleList([
+            Encoder(self.list_channels[i-1], self.list_channels[i]) 
+            for i in range(1, len(self.list_channels))
+        ])
 
         # Initialize the list of Decoder
-        self.dec = nn.ModuleList()
-        for i in range(len(self.list_channels)-1, 0, -1):
-            self.dec.append(Decoder(self.list_channels[i], self.list_channels[i-1]))
+        self.dec = nn.ModuleList([
+            Decoder(self.list_channels[i], self.list_channels[i-1]) 
+            for i in range(len(self.list_channels)-1, 0, -1)
+        ])
 
         # Final output convolution to get the desired number of classes
         self.out_conv = nn.Conv2d(self.list_channels[0], n_classes, kernel_size=1)
+
+        # Wavelet weights for high-frequency components (learnable parameters)
+        self.wavelet_weights = nn.ParameterList([
+            nn.Parameter(torch.tensor([0.5, 0.5])) for _ in range(len(self.dec))  # One weight for LL, one for (LH + HL + HH)
+        ])
 
     def forward(self, x):
         # Encoder path
@@ -43,13 +51,19 @@ class WTSC_UNet(nn.Module):
 
         for i in range(len(self.dec)):
             # Apply wavelet transform to the corresponding encoder feature map for skip connection
-            Yl, Yh = self.wavelet(features[len(self.enc)-1-i])  # Yl: low-frequency, Yh: high-frequency
-            
-            # Resize Yh if necessary to match the spatial dimensions of the decoder input
-            if Yh.shape[2:] != y.shape[2:]:
-                Yh = nn.functional.interpolate(Yh, size=y.shape[2:], mode='bilinear', align_corners=False)
+            ll, (lh, hl, hh) = self.wavelet(features[len(self.enc)-1-i])  # ll: low-frequency, lh: low-high-frequency, hl: high-low-frequency, hh: high-frequency
 
-            y = self.dec[i](y, Yh)  # Using high-frequency component for skip connection
+            # Calculate learnable weighted sum of high-feature
+            normalized_weights = torch.softmax(self.wavelet_weights[i], dim=0)  # Normalize weights to sum to 1 using soft-max
+
+            ll_weighted = normalized_weights[0] * ll
+            lh_weighted = normalized_weights[1] * lh
+            hl_weighted = normalized_weights[1] * hl
+            hh_weighted = normalized_weights[1] * hh 
+
+            features_weighted = self.wavelet.inverse(ll_weighted, (lh_weighted, hl_weighted, hh_weighted))  # Reconstruct the feature map from wavelet components
+
+            y = self.dec[i](y, features_weighted)  # Pass the weighted skip connection to the decoder
 
         # Final output layer
         out = self.out_conv(y)

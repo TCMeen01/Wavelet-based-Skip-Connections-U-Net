@@ -1,3 +1,7 @@
+matplotlib
+tqdm
+time
+copy
 pytorch
 pytorch_wavelets
 Pywavelets

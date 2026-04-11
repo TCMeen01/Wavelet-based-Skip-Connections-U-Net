@@ -44,6 +44,6 @@ class MedicalSegmentationDataset(Dataset):
             mask = self.mask_transform(mask)
 
         # Binarize the mask (assuming binary segmentation)
-        mask = (mask > 0).float()  # Convert to binary mask (0 and 1)
+        mask = (mask > 0.5).float()  # Convert to binary mask (0 and 1)
 
         return image, mask
