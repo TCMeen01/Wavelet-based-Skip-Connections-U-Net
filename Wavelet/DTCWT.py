@@ -8,7 +8,7 @@ class DTCWTransform(nn.Module):
         biort: Biorthogonal wavelet type (e.g., 'near_dist_b', 'near_sym_a', etc.)
         qshift: Q-shift wavelet type (e.g., 'qshift_b', 'qshift_a', etc.)
         """
-        super(DTCWTransform, self).__init__()
+        super().__init__()
 
         self.xfm = DTCWTForward(J=1, biort=biort, qshift=qshift)
         self.ifm = DTCWTInverse(biort=biort, qshift=qshift)

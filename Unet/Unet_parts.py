@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 
+# ConvBlock: Two stacked convolutional layers with batch normalization and ReLU activation function
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels) -> None:
         super().__init__()
@@ -18,6 +19,7 @@ class ConvBlock(nn.Module):
         return x
 
 
+# Encoder: Max pooling followed by a convolutional block
 class Encoder(nn.Module):
     def __init__(self, in_channels, out_channels) -> None:
         super().__init__()
@@ -31,6 +33,7 @@ class Encoder(nn.Module):
         return x
 
 
+# Decoder: Transposed convolution for upsampling followed by a convolutional block
 class Decoder(nn.Module):
     def __init__(self, in_channels, out_channels) -> None:
         super().__init__()
@@ -39,7 +42,9 @@ class Decoder(nn.Module):
         self.conv_block = ConvBlock(in_channels, out_channels)
 
     def forward(self, x1, x2):
-        x1  = self.conv_trans(x1)
+        # x1 is the output from the previous layer (decoder)
+        # x2 is the corresponding feature map from the encoder (skip connection)
+        x1 = self.conv_trans(x1)
         x = torch.cat([x2, x1], dim=1)
         x = self.conv_block(x)
         return x

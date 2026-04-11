@@ -8,7 +8,7 @@ class DWTransform(nn.Module):
         wave: Type of wavelet to use (e.g., 'haar', 'db1', 'sym2', etc.)
         mode: Signal extension mode (e.g., 'zero', 'symmetric', 'periodic', etc.)
         '''
-        super(DWTransform, self).__init__()
+        super().__init__()
 
         self.dwt = DWTForward(J=1, wave=wave, mode=mode)
         self.idwt = DWTInverse(wave=wave, mode=mode)

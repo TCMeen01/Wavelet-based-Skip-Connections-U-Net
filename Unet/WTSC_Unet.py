@@ -1,7 +1,7 @@
 from torch import nn
 from Wavelet.DWT import DWTransform
 from Wavelet.DTCWT import DTCWTransform
-from Unet_parts import ConvBlock, Encoder, Decoder
+from Unet.Unet_parts import ConvBlock, Encoder, Decoder
 
 class WTSC_UNet(nn.Module):
     list_channels = [64, 128, 256, 512, 1024]

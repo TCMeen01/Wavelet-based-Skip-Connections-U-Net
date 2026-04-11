@@ -1,132 +1,87 @@
-import torch
 import os
-from tqdm import tqdm
-from torch import nn
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*")
+
+import argparse
+
+import torch
+import torch.nn as nn
 
 # Unet and WTSC_Unet models
 from Unet.Unet import Unet
 from Unet.WTSC_Unet import WTSC_UNet
 
 # Dataset and Dataloader
-from Utils.DataLoader import dataloader
+from DataHandle.DataLoader import *
+from DataHandle.Dataset import *
 
 # Metrics
-from Utils.metrics import iou_score, dice_score
+from Utils.metrics import DiceLoss
 
-def train(model, 
-          dataloader, 
-          criterion, 
-          optimizer, 
-          device,
-          num_epochs=25,
-          save_checkpoints=True,
-          checkpoint_dir='checkpoints',
-          checkpoint_interval=5):
+# Utils
+from Utils.utils import *
 
-    # Create checkpoint directory if needed
-    if save_checkpoints and not os.path.exists(checkpoint_dir):
-        os.makedirs(checkpoint_dir)
-        print(f"Created checkpoint directory: {checkpoint_dir}")
-
-    model.to(device)
-    
-    for epoch in range(num_epochs):
-        model.train()
-        running_loss = 0.0
-        running_iou = 0.0
-        running_dice = 0.0
-        
-        # Use tqdm for progress bar
-        progress_bar = tqdm(dataloader, desc=f"Epoch {epoch+1}/{num_epochs}", unit="batch")
-        
-        for images, masks in progress_bar:
-            images = images.to(device)
-            masks = masks.to(device)
-            
-            # --- Preprocessing mask logic (Dataset Specific) ---
-            # Oxford Pet masks: 1 (Fore), 2 (Back), 3 (Trimap).
-            # Convert to: 0, 1, 2
-            if masks.max() <= 1.0: 
-                 masks = (masks * 255).long()
-                 masks = masks - 1
-                 masks = torch.clamp(masks, min=0)
-                 
-            # Squeeze channel dim for CrossEntropyLoss: (B, 1, H, W) -> (B, H, W)
-            if masks.dim() == 4 and (masks.shape[1] == 1):
-                masks = masks.squeeze(1)
-
-            optimizer.zero_grad()
-            
-            outputs = model(images) # Output: (B, n_classes, H, W)
-            
-            loss = criterion(outputs, masks)
-            
-            loss.backward()
-            optimizer.step()
-            
-            running_loss += loss.item()
-            
-            # --- Metrics Calculation ---
-            # Tính IoU/Dice cho lớp quan trọng nhất (ví dụ class 0: Pet)
-            # Hoặc trung bình tất cả các lớp. Ở đây demo tính cho class 0.
-            with torch.no_grad():
-                probs = torch.softmax(outputs, dim=1)
-                preds = torch.argmax(probs, dim=1)
-                
-                # Binary metrics for Class 0 (Pet)
-                pred_pet = (preds == 0).float()
-                target_pet = (masks == 0).float()
-                
-                batch_iou = iou_score(pred_pet, target_pet)
-                batch_dice = dice_score(pred_pet, target_pet)
-                
-                running_iou += batch_iou
-                running_dice += batch_dice
-            
-            progress_bar.set_postfix({'loss': f"{loss.item():.4f}", 'iou_pet': f"{batch_iou:.4f}"})
-        
-        epoch_loss = running_loss / len(dataloader)
-        epoch_iou = running_iou / len(dataloader)
-        epoch_dice = running_dice / len(dataloader)
-        
-        print(f"Epoch [{epoch+1}/{num_epochs}] Loss: {epoch_loss:.4f} | IoU (Pet): {epoch_iou:.4f} | Dice (Pet): {epoch_dice:.4f}")
-        
-        # Save Checkpoint
-        if save_checkpoints and (epoch + 1) % checkpoint_interval == 0:
-            ckpt_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch+1}.pth")
-            
-            # Saving model parameters (state_dict) and optimizer state
-            torch.save({
-                'epoch': epoch + 1,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': epoch_loss,
-                'iou': epoch_iou,
-                'dice': epoch_dice
-            }, ckpt_path)
-            print(f"Saved checkpoint (params included): {ckpt_path}")
 
 if __name__ == "__main__":
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Using device: {device}")
-    
-    # Model parameters for Oxford Pet (3 classes: Pet, BG, Border)
-    n_channels = 3
-    n_classes = 3
+    parser = argparse.ArgumentParser(description="Train UNet or WTSC-UNet")
+
+    # Required args
+    parser.add_argument("--model", type=str, required=True, choices=['Unet', 'WTSC_UNet'], help="Model architecture to train")
+    parser.add_argument("--dataset_name", type=str, required=True, help="Name of the dataset ('ISIC' or 'Kvasir')")
+    parser.add_argument("--dataset_path", type=str, required=True, help="Path to the dataset directory")
+
+    # Optional args with defaults
+    parser.add_argument("--batch_size", type=int, default=8, help="Batch size for training")
+    parser.add_argument("--img_size", type=int, default=256, help="Size to resize images and masks (assumes square size img_size x img_size)")
+    parser.add_argument("--num_workers", type=int, default=4, help="Number of CPU subprocesses for data loading")
+    parser.add_argument("--n_epochs", type=int, default=50, help="Number of training epochs")
+    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate for optimizer")
+    parser.add_argument("--device", type=str, default="cpu", choices=['cpu', 'gpu'], help="Device to train on")
+    parser.add_argument("--criterion", type=str, default="BCEWithLogitsLoss", choices=['BCEWithLogitsLoss', 'DiceLoss'], help="Loss function to use for training")
+    parser.add_argument("--model_save_path", type=str, help="Path to save the trained model. If not provided, the model will not be saved.")
+
+    args = parser.parse_args()
+
+    # Get dataloaders
+    if args.dataset_name.lower() == 'isic':
+        train_loader, val_loader, test_loader = get_isic_dataloaders(args.dataset_path, args.batch_size, 
+                                                                     args.img_size, args.num_workers)
+    elif args.dataset_name.lower() == 'kvasir':
+        train_loader, val_loader, test_loader = get_kvasir_dataloaders(args.dataset_path, args.batch_size, 
+                                                                       args.img_size, args.num_workers)
+    else:
+        raise ValueError("Unsupported dataset name. Please choose 'ISIC' or 'Kvasir'.")
     
     # Initialize model
-    model = WTSC_UNet(n_channels, n_classes) 
-    # model = Unet(n_channels, n_classes)
+    if args.model == 'Unet':
+        model = Unet(in_channels=3, out_channels=1)
+    elif args.model == 'WTSC_UNet':
+        model = WTSC_UNet(in_channels=3, out_channels=1)
+    else:
+        raise ValueError("Unsupported model architecture. Please choose 'Unet' or 'WTSC_UNet'.")
+
+    # Set device
+    device = torch.device("cuda" if args.device == "gpu" and torch.cuda.is_available() else "cpu")
+
+    # Train the model
+    if args.criterion == "BCEWithLogitsLoss":
+        criterion = nn.BCEWithLogitsLoss()
+    elif args.criterion == "DiceLoss":
+        criterion = DiceLoss()
+    else:
+        raise ValueError("Unsupported criterion. Please choose 'BCEWithLogitsLoss' or 'DiceLoss'.")
     
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    best_state, history = train_model(model, train_loader, val_loader, 
+                                      epochs=args.n_epochs, learning_rate=args.lr, 
+                                      criterion=criterion, device=device)
     
-    # Train
-    train(model, 
-          dataloader, 
-          criterion, 
-          optimizer, 
-          device, 
-          num_epochs=50, 
-          save_checkpoints=True, 
-          checkpoint_interval=10)
+    # Save the best model if a save path is provided
+    if args.model_save_path:
+        torch.save(best_state, args.model_save_path)
+        print(f"Best model saved to {args.model_save_path}")
+
+    # Plot training history
+    plot_training_history(history)

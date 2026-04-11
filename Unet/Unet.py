@@ -1,7 +1,9 @@
 from torch import nn
-from Unet_parts import ConvBlock, Encoder, Decoder
+from Unet.Unet_parts import ConvBlock, Encoder, Decoder
 
+# U-Net architecture for image segmentation
 class Unet(nn.Module):
+    # List of channels for each layer in the encoder and decoder
     list_channels = [64, 128, 256, 512, 1024]
 
     def __init__(self, n_channels, n_classes) -> None:
