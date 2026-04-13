@@ -27,6 +27,7 @@ def load_random_rgb_image_tensor(dir_path, device):
         raise FileNotFoundError(f"No valid images found in directory: {dir_path}")
         
     random_file = random.choice(all_files)
+    random_file = all_files[20]
     img_path = os.path.join(dir_path, random_file)
     
     # Force loading as RGB image
@@ -82,11 +83,11 @@ def random_visualize_dwt(dir_path, device):
     hl_np = hl.squeeze().cpu().numpy()
     hh_np = hh.squeeze().cpu().numpy()
     
-    # Setup matplotlib figure (1 row, 5 columns to include Original RGB)
-    fig, axes = plt.subplots(1, 5, figsize=(12, 4))
+    # Setup matplotlib figure (1 row, 6 columns to include Original RGB)
+    fig, axes = plt.subplots(1, 6, figsize=(12, 4))
     fig.suptitle(f"DWT (db2) - {os.path.basename(img_path)}", fontsize=14)
     
-    titles = ['Original RGB', 'Low-Frequency (LL)', 'Horizontal (LH)', 'Vertical (HL)', 'Diagonal (HH)']
+    titles = ['Original RGB', 'Low-Frequency (LL)', 'Horizontal (LH)', 'Vertical (HL)', 'Diagonal (HH)', 'Reconstructed']
     
     # 1. Plot Original RGB
     axes[0].imshow(img_rgb_np)
@@ -99,7 +100,16 @@ def random_visualize_dwt(dir_path, device):
         axes[i+1].imshow(images_wavelet[i], cmap='gray')
         axes[i+1].set_title(titles[i+1])
         axes[i+1].axis('off')
-        
+    
+    # 3. Reconstruct the image from wavelet components to verify correctness
+    a = 0.5
+    b = 100
+    reconstructed = dwt.inverse(a*ll, (b*lh, b*hl, b*hh)).squeeze().cpu().numpy()
+    reconstructed = (reconstructed * 0.5) + 0.5 # Denormalize for visualization
+    axes[5].imshow(reconstructed, cmap='gray')
+    axes[5].set_title(titles[5])
+    axes[5].axis('off')
+
     plt.tight_layout()
     plt.show()
 
@@ -143,7 +153,16 @@ def random_visualize_dtcwt(dir_path, device):
     ax_yl.set_title('Low-Frequency Gray (yl)')
     ax_yl.axis('off')
     
-    # 3. Plot 6 Directions of High-Frequency (Magnitude)
+    # 3. Plot Reconstructed Image from DTCWT to verify correctness
+    a = 1
+    b = 10
+    reconstructed = dtcwt.inverse(a*yl, tuple(b*comp for comp in yh_real), tuple(b*comp for comp in yh_imag)).squeeze().cpu().numpy()
+    reconstructed = (reconstructed * 0.5) + 0.5 # Denormalize for visualization
+    ax_recon = fig.add_subplot(2, 6, (5, 6))
+    ax_recon.imshow(reconstructed, cmap='gray')
+    ax_recon.set_title('Reconstructed from DTCWT')
+    ax_recon.axis('off')
+
     angles = ['+15°', '-15°', '+45°', '-45°', '+75°', '-75°']
     
     for i in range(6):
@@ -165,8 +184,8 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dataset_dir = 'Datasets\Kvasir-SEG\images'
     
-    print("Visualizing DWT...")
-    random_visualize_dwt(dataset_dir, device)
+    # print("Visualizing DWT...")
+    # random_visualize_dwt(dataset_dir, device)
     
     print("Visualizing DTCWT...")
     random_visualize_dtcwt(dataset_dir, device)

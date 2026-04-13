@@ -7,7 +7,7 @@ import argparse
 import torch
 from DataHandle.DataLoader import get_transforms
 from Utils.metrics import dice_score, hd95_score
-from Unet.WTSC_Unet import WTSC_UNet
+from Unet.WTSC_Unet import DWTSC_UNet
 from Unet.Unet import Unet
 
 import warnings
@@ -88,11 +88,11 @@ def random_inference(model, input_dir, mask_dir, img_size, device):
 
 # ==================== MAIN ====================
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Inference for UNet or WTSC-UNet")
+    parser = argparse.ArgumentParser(description="Inference for UNet or DWTSC-UNet")
 
     # Required args
-    parser.add_argument("--model_type", type=str, required=True, choices=['Unet', 'WTSC_UNet'], 
-                        help="Model architecture to use for inference ('Unet' or 'WTSC_UNet')")
+    parser.add_argument("--model_type", type=str, required=True, 
+                        help="Model architecture to use for inference ('Unet' or 'DWTSC_UNet')")
     parser.add_argument("--checkpoint_path", type=str, required=True, 
                         help="Path to the .pth file (e.g., Models/unet_baseline_model_Kvasir.pth)")
 
@@ -117,8 +117,8 @@ if __name__ == "__main__":
     print('Loading model...')
     if args.model_type.lower() == 'unet':
         model = Unet(n_channels=3, n_classes=1)
-    elif args.model_type.lower() == 'wtsc_unet':
-        model = WTSC_UNet(n_channels=3, n_classes=1)
+    elif args.model_type.lower() == 'dwtsc_unet':
+        model = DWTSC_UNet(n_channels=3, n_classes=1)
     model.to(device)
 
     # Load the model weights from the specified checkpoint

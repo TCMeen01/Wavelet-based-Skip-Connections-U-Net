@@ -30,6 +30,37 @@ def dice_score(pred, target, smooth=1e-6):
 
     return dice.item()
 
+def iou_score(pred, target, smooth=1e-6):
+    '''
+    Compute the Intersection over Union (IoU) score between predicted and target tensors.
+    Parameters:
+        pred (torch.Tensor): The predicted tensor (output of the model: Raw logits).
+        target (torch.Tensor): The target tensor.
+        smooth (float): A small value to avoid division by zero.
+    Returns:
+        float: The IoU score.
+    '''
+    # Apply sigmoid to get probabilities (from raw logits)
+    pred = torch.sigmoid(pred)
+    
+    # Binarize predictions (threshold at 0.5)
+    pred = (pred > 0.5).float()
+
+    # Flatten the tensors
+    pred = pred.view(-1)
+    target = target.view(-1)
+
+    # Intersection: |A ∩ B|
+    intersection = (pred * target).sum()
+
+    # Union: |A ∪ B| = |A| + |B| - |A ∩ B|
+    union = pred.sum() + target.sum() - intersection
+
+    # Compute IoU Score
+    iou = (intersection + smooth) / (union + smooth)
+
+    return iou.item()
+
 def hd95_score(pred, target):
     """
     Compute the 95th percentile Hausdorff Distance (HD95) between the predicted mask 
@@ -70,36 +101,3 @@ def hd95_score(pred, target):
 
     # Return the mean HD95 of the valid batch as a float
     return valid_hd95.mean().item()
-
-class DiceLoss(nn.Module):
-    '''
-    Dice Loss for binary segmentation tasks.
-    '''
-    def __init__(self, smooth=1e-6):
-        super().__init__()
-        self.smooth = smooth
-
-    def forward(self, pred, target):
-        '''
-        Compute the Dice loss between predicted and target tensors.
-        Parameters:
-            pred (torch.Tensor): The predicted tensor (output of the model: Raw logits).
-            target (torch.Tensor): The target tensor.
-        Returns:
-            torch.Tensor: The Dice loss.
-        '''
-
-        # Apply sigmoid to get probabilities
-        pred = torch.sigmoid(pred)
-
-        # Flatten the tensors
-        pred = pred.view(-1)
-        target = target.view(-1)
-
-        # Intersection
-        intersection = (pred * target).sum()
-
-        # Compute Dice Loss
-        dice_loss = 1 - (2 * intersection + self.smooth) / (pred.sum() + target.sum() + self.smooth)
-
-        return dice_loss

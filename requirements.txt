@@ -5,3 +5,6 @@ copy
 pytorch
 pytorch_wavelets
 Pywavelets
+albumentations
+scikit-learn
+numpy<2

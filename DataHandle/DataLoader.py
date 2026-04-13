@@ -1,34 +1,12 @@
 import os
 import torch
-from torchvision.transforms import transforms
 from torch.utils.data import DataLoader
 from DataHandle.Dataset import MedicalSegmentationDataset
+from DataHandle.Transforms import get_transforms, get_augmentations_transform
 
 from sklearn.model_selection import train_test_split
 
-def get_transforms(img_size=256):
-    '''
-    Get image and mask transformations for data preprocessing.
-    Parameters:
-        img_size (int): The size to which images and masks will be resized.
-    Returns:
-        tuple: A tuple containing the image and mask transformations.
-    '''
-    img_transform = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.5]*3, [0.5]*3)
-    ])
-
-    mask_transform = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.ToTensor()
-    ])
-
-    return img_transform, mask_transform
-
-
-def get_isic_dataloaders(root_dir, batch_size=8, img_size=256, num_workers=4):
+def get_isic_dataloaders(root_dir, batch_size=8, img_size=256, num_workers=4, augmentation=False):
     '''
     Create and return DataLoaders for the pre-split ISIC 2018 dataset (Train/Val/Test).
 
@@ -37,6 +15,7 @@ def get_isic_dataloaders(root_dir, batch_size=8, img_size=256, num_workers=4):
         batch_size (int): Number of samples per batch. Defaults to 8.
         img_size (int): Size to resize the images and masks (assumes square size img_size x img_size). Defaults to 256.
         num_workers (int): Number of CPU subprocesses for data loading. Defaults to 4.
+        augmentation (bool): Whether to apply data augmentation. Defaults to False.
 
     Returns:
         train_loader (DataLoader): DataLoader for the training set.
@@ -80,9 +59,10 @@ def get_isic_dataloaders(root_dir, batch_size=8, img_size=256, num_workers=4):
 
     # Get transforms
     image_transform, mask_transform = get_transforms(img_size=img_size)
+    aug_transform = get_augmentations_transform(img_size=img_size) if augmentation else None
     
     # Initialize Datasets
-    train_dataset = MedicalSegmentationDataset(train_images, train_masks, image_transform, mask_transform)
+    train_dataset = MedicalSegmentationDataset(train_images, train_masks, image_transform, mask_transform, aug_transform)
     val_dataset = MedicalSegmentationDataset(val_images, val_masks, image_transform, mask_transform)
     test_dataset = MedicalSegmentationDataset(test_images, test_masks, image_transform, mask_transform)
     
@@ -121,7 +101,7 @@ def get_isic_dataloaders(root_dir, batch_size=8, img_size=256, num_workers=4):
     return train_loader, val_loader, test_loader
 
 def get_kvasir_dataloaders(root_dir, batch_size=8, img_size=256,
-                          num_workers=4, val_size=0.1, test_size=0.1):
+                          num_workers=4, val_size=0.1, test_size=0.1, augmentation=False):
     '''
     Create and return train, validation, and test dataloaders from the given `root_dir`.
 
@@ -131,6 +111,7 @@ def get_kvasir_dataloaders(root_dir, batch_size=8, img_size=256,
         img_size (int): Size to resize the images and masks (assumes square size img_size x img_size). Defaults to 256.
         val_size (float): Proportion of the dataset to include in the validation split. Defaults to 0.1 (10%).
         test_size (float,): Proportion of the dataset to include in the test split. Defaults to 0.1 (10%).
+        augmentation (bool): Whether to apply data augmentation. Defaults to False.
         num_workers (int): Number of CPU subprocesses to use for data loading. Defaults to 4.
 
     Returns:
@@ -164,9 +145,10 @@ def get_kvasir_dataloaders(root_dir, batch_size=8, img_size=256,
 
     # Get transforms
     image_transform, mask_transform = get_transforms(img_size=img_size)
+    aug_transform = get_augmentations_transform(img_size=img_size) if augmentation else None
 
     # Init datasets
-    train_dataset = MedicalSegmentationDataset(X_train, y_train, image_transform, mask_transform)
+    train_dataset = MedicalSegmentationDataset(X_train, y_train, image_transform, mask_transform, aug_transform)
     val_dataset = MedicalSegmentationDataset(X_val, y_val, image_transform, mask_transform)
     test_dataset = MedicalSegmentationDataset(X_test, y_test, image_transform, mask_transform)
 

@@ -12,14 +12,14 @@ import torch.nn as nn
 
 # Unet and WTSC_Unet models
 from Unet.Unet import Unet
-from Unet.WTSC_Unet import DWTSC_UNet
+from Unet.WTSC_Unet import DWTSC_UNet, DTCWTSC_UNet
 
 # Dataset and Dataloader
 from DataHandle.DataLoader import *
 from DataHandle.Dataset import *
 
 # Metrics
-from Utils.metrics import DiceLoss
+from Utils.objectives import DiceLoss
 
 # Utils
 from Utils.utils import *
@@ -159,7 +159,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train UNet or DWTSC-UNet")
 
     # Required args
-    parser.add_argument("--model", type=str, required=True, help="Model architecture to train")
+    parser.add_argument("--model", type=str, required=True, help="Model architecture to train ('Unet' or 'DWTSC_UNet' or 'DTCWTSC_UNet')")
     parser.add_argument("--dataset_name", type=str, required=True, help="Name of the dataset ('ISIC' or 'Kvasir')")
     parser.add_argument("--dataset_path", type=str, required=True, help="Path to the dataset directory")
 
@@ -190,8 +190,10 @@ if __name__ == "__main__":
         model = Unet(n_channels=3, n_classes=1)
     elif args.model.lower() == 'dwtsc_unet':
         model = DWTSC_UNet(n_channels=3, n_classes=1)
+    elif args.model.lower() == 'dtcwtsc_unet':
+        model = DTCWTSC_UNet(n_channels=3, n_classes=1)
     else:
-        raise ValueError("Unsupported model architecture. Please choose 'Unet' or 'DWTSC_UNet'.")
+        raise ValueError("Unsupported model architecture. Please choose 'Unet' or 'DWTSC_UNet' or 'DTCWTSC_UNet'.")
 
     # Set device
     device = torch.device("cuda" if args.device == "gpu" and torch.cuda.is_available() else "cpu")
