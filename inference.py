@@ -6,8 +6,8 @@ import argparse
 
 import torch
 from DataHandle.DataLoader import get_transforms
-from Utils.metrics import dice_score, hd95_score
-from Unet.WTSC_Unet import DWTSC_UNet
+from Utils.metrics import dice_score, iou_score, hd95_score
+from Unet.WTSC_Unet import DTCWTSC_UNet, DWTSC_UNet
 from Unet.Unet import Unet
 
 import warnings
@@ -58,6 +58,7 @@ def random_inference(model, input_dir, mask_dir, img_size, device):
 
         # Compute Dice score and HD95 score
         dice_val = dice_score(output, mask_tensor)
+        iou_val = iou_score(output, mask_tensor)
         hd95 = hd95_score(output, mask_tensor)
 
         # Apply sigmoid activation and threshold to get binary predictions
@@ -76,7 +77,7 @@ def random_inference(model, input_dir, mask_dir, img_size, device):
     images = [input_tensor.squeeze().cpu().permute(1, 2, 0).numpy(),
               mask_tensor.squeeze().cpu().numpy(), 
               predicted]
-    titles = ['Input Image\n', 'Ground Truth Mask\n', f'Predicted Mask\nDice Score: {dice_val:.4f}\nHD95: {hd95:.4f}']
+    titles = ['Input Image\n', 'Ground Truth Mask\n', f'Predicted Mask\nDice Score: {dice_val:.4f}\nIoU: {iou_val:.4f}\nHD95: {hd95:.4f}']
 
     # Draw image
     for i in range(3):
@@ -88,11 +89,11 @@ def random_inference(model, input_dir, mask_dir, img_size, device):
 
 # ==================== MAIN ====================
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Inference for UNet or DWTSC-UNet")
+    parser = argparse.ArgumentParser(description="Inference for UNet or DTCWTSC-UNet")
 
     # Required args
     parser.add_argument("--model_type", type=str, required=True, 
-                        help="Model architecture to use for inference ('Unet' or 'DWTSC_UNet')")
+                        help="Model architecture to use for inference ('Unet' or 'DTCWTSC_UNet')")
     parser.add_argument("--checkpoint_path", type=str, required=True, 
                         help="Path to the .pth file (e.g., Models/unet_baseline_model_Kvasir.pth)")
 
@@ -117,8 +118,8 @@ if __name__ == "__main__":
     print('Loading model...')
     if args.model_type.lower() == 'unet':
         model = Unet(n_channels=3, n_classes=1)
-    elif args.model_type.lower() == 'dwtsc_unet':
-        model = DWTSC_UNet(n_channels=3, n_classes=1)
+    elif args.model_type.lower() == 'dtcwtsc_unet':
+        model = DTCWTSC_UNet(n_channels=3, n_classes=1)
     model.to(device)
 
     # Load the model weights from the specified checkpoint

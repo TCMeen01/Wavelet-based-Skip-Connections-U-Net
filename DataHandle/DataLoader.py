@@ -6,7 +6,7 @@ from DataHandle.Transforms import get_transforms, get_augmentations_transform
 
 from sklearn.model_selection import train_test_split
 
-def get_isic_dataloaders(root_dir, batch_size=8, img_size=256, num_workers=4, augmentation=False):
+def get_isic_dataloaders(root_dir, batch_size=8, img_size=256, num_workers=4, augmentation=False, use_distmap=False):
     '''
     Create and return DataLoaders for the pre-split ISIC 2018 dataset (Train/Val/Test).
 
@@ -16,7 +16,7 @@ def get_isic_dataloaders(root_dir, batch_size=8, img_size=256, num_workers=4, au
         img_size (int): Size to resize the images and masks (assumes square size img_size x img_size). Defaults to 256.
         num_workers (int): Number of CPU subprocesses for data loading. Defaults to 4.
         augmentation (bool): Whether to apply data augmentation. Defaults to False.
-
+        use_distmap (bool): Whether to use distance maps for boundary loss. Defaults to False.
     Returns:
         train_loader (DataLoader): DataLoader for the training set.
         val_loader (DataLoader): DataLoader for the validation set.
@@ -62,10 +62,10 @@ def get_isic_dataloaders(root_dir, batch_size=8, img_size=256, num_workers=4, au
     aug_transform = get_augmentations_transform(img_size=img_size) if augmentation else None
     
     # Initialize Datasets
-    train_dataset = MedicalSegmentationDataset(train_images, train_masks, image_transform, mask_transform, aug_transform)
-    val_dataset = MedicalSegmentationDataset(val_images, val_masks, image_transform, mask_transform)
+    train_dataset = MedicalSegmentationDataset(train_images, train_masks, use_distmap, image_transform, mask_transform, aug_transform)
+    val_dataset = MedicalSegmentationDataset(val_images, val_masks, use_distmap, image_transform, mask_transform)
     test_dataset = MedicalSegmentationDataset(test_images, test_masks, image_transform, mask_transform)
-    
+
     # Initialize DataLoaders with optimized configurations
     pin_mem = True if torch.cuda.is_available() else False  # Use pin_memory only if CUDA is available
     train_loader = DataLoader(
@@ -101,7 +101,7 @@ def get_isic_dataloaders(root_dir, batch_size=8, img_size=256, num_workers=4, au
     return train_loader, val_loader, test_loader
 
 def get_kvasir_dataloaders(root_dir, batch_size=8, img_size=256,
-                          num_workers=4, val_size=0.1, test_size=0.1, augmentation=False):
+                          num_workers=4, val_size=0.1, test_size=0.1, augmentation=False, use_distmap=False):
     '''
     Create and return train, validation, and test dataloaders from the given `root_dir`.
 
@@ -112,6 +112,7 @@ def get_kvasir_dataloaders(root_dir, batch_size=8, img_size=256,
         val_size (float): Proportion of the dataset to include in the validation split. Defaults to 0.1 (10%).
         test_size (float,): Proportion of the dataset to include in the test split. Defaults to 0.1 (10%).
         augmentation (bool): Whether to apply data augmentation. Defaults to False.
+        use_distmap (bool): Whether to use distance maps for boundary loss. Defaults to False.
         num_workers (int): Number of CPU subprocesses to use for data loading. Defaults to 4.
 
     Returns:
@@ -148,8 +149,8 @@ def get_kvasir_dataloaders(root_dir, batch_size=8, img_size=256,
     aug_transform = get_augmentations_transform(img_size=img_size) if augmentation else None
 
     # Init datasets
-    train_dataset = MedicalSegmentationDataset(X_train, y_train, image_transform, mask_transform, aug_transform)
-    val_dataset = MedicalSegmentationDataset(X_val, y_val, image_transform, mask_transform)
+    train_dataset = MedicalSegmentationDataset(X_train, y_train, use_distmap, image_transform, mask_transform, aug_transform)
+    val_dataset = MedicalSegmentationDataset(X_val, y_val, use_distmap, image_transform, mask_transform)
     test_dataset = MedicalSegmentationDataset(X_test, y_test, image_transform, mask_transform)
 
     # Init dataloaders, add pin_memory and prefetch_factor for optimization purpose

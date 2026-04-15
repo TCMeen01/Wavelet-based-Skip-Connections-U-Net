@@ -1,14 +1,17 @@
+import torch
 from torch.utils.data import Dataset
 from PIL import Image
 import numpy as np
+from Utils.utils import compute_distance_map
 
 class MedicalSegmentationDataset(Dataset):
-    def __init__(self, image_paths, mask_paths, image_transform=None, mask_transform=None, aug_transform=None):
+    def __init__(self, image_paths, mask_paths, use_distmap=False, image_transform=None, mask_transform=None, aug_transform=None):
         '''
         Initializes the MedicalSegmentationDataset.
         Parameters:
             image_paths (list): List of file paths to the input images.
             mask_paths (list): List of file paths to the corresponding masks.
+            use_distmap (bool): Whether to use distance maps.
             image_transform (callable, optional): A function/transform to apply to the input images.
             mask_transform (callable, optional): A function/transform to apply to the masks.
             aug_transform (albumentations.Compose, optional): An albumentations Compose object containing the augmentations.
@@ -17,6 +20,7 @@ class MedicalSegmentationDataset(Dataset):
 
         self.image_paths = image_paths
         self.mask_paths = mask_paths
+        self.use_distmap = use_distmap
         self.image_transform = image_transform
         self.mask_transform = mask_transform
         self.aug_transform = aug_transform
@@ -59,4 +63,18 @@ class MedicalSegmentationDataset(Dataset):
 
             mask = (mask > 0.5).float()  # Binarize the mask (assuming binary segmentation)
 
+        # Optionally compute distance maps
+        if self.use_distmap:
+            # Convert mask to numpy for distance map computation
+            mask_binary_np = mask.squeeze(0).numpy()
+
+            # Compute distance map
+            dist_map = compute_distance_map(mask_binary_np)
+
+            # Convert distance map to tensor and add channel dimension
+            dist_map_tensor = torch.from_numpy(dist_map).unsqueeze(0).float()
+
+            return image, mask, dist_map_tensor
+        
+        # If not using distance maps, just return the image and mask
         return image, mask

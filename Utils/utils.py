@@ -1,18 +1,27 @@
-import torch
-from tqdm import tqdm
-import torch.optim as optim
-import time
-import copy
-
 import matplotlib.pyplot as plt
 import random
 
 from Utils.metrics import dice_score
+import numpy as np
+from scipy.ndimage import distance_transform_edt
 
-# def visualize_result(input, mask, pred):
-#     '''
-#     Visualize 
-#     '''
+def compute_distance_map(mask_np):
+    """
+    Compute the distance map for a given binary mask.
+    Args:
+        mask_np (numpy.ndarray): A 2D binary numpy array where foreground pixels are 1 and background pixels are 0.
+    Returns:
+        numpy.ndarray: A 2D array of the same shape as mask_np containing the distance map values.
+    """
+    posmask = mask_np.astype(bool)
+    
+    if posmask.any(): # If there are any foreground pixels
+        negmask = ~posmask
+        res = distance_transform_edt(negmask) * negmask - (distance_transform_edt(posmask) - 1) * posmask
+    else: # If there are no foreground pixels
+        res = np.zeros_like(mask_np)
+        
+    return res.astype(np.float32)
 
 def random_visualize(loader, title="Dataset Sample", n_samples=3):
     '''

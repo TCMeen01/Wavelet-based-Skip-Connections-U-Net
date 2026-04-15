@@ -36,35 +36,61 @@ class DiceLoss(nn.Module):
         # Return the average Dice loss for the batch
         return dice_loss
     
+class BCEDiceLoss(nn.Module):
+    """
+    Combine BCE and Dice Loss for training binary segmentation models.
+    """
+    def __init__(self, weight_bce=0.5, weight_dice=0.5, smooth=1e-6):
+        super().__init__()
+        self.weight_bce = weight_bce
+        self.weight_dice = weight_dice
+        
+        # BCE loss (with raw logit)
+        self.bce_loss = nn.BCEWithLogitsLoss()
+        
+        # Dice loss
+        self.dice_loss = DiceLoss(smooth=smooth)
 
-class HD95Loss(nn.Module):
+    def forward(self, logits, targets):
+        """
+        Args:
+            logits (torch.Tensor): Raw output from the model (before sigmoid).
+            targets (torch.Tensor): Ground truth binary mask (0 and 1).
+        Returns:
+            torch.Tensor: The combined BCE and Dice loss.
+        """
+        # 1. Calc BCE loss
+        bce = self.bce_loss(logits, targets.float())
+        
+        # 2. Calc Dice loss
+        dice = self.dice_loss(logits, targets)
+        
+        # 3. Combine Loss
+        combined_loss = (self.weight_bce * bce) + (self.weight_dice * dice)
+        
+        return combined_loss
+    
+class BoundaryLoss(nn.Module):
     '''
-    HD95 Loss for binary segmentation tasks.
+    Boundary Loss for binary segmentation tasks, which penalizes predictions based on their distance from the true boundary.
+    This loss is used for fine-tuning the model to better capture the boundaries of the segmented objects.
     '''
     def __init__(self):
         super().__init__()
 
-    def forward(self, pred, target):
-        '''
-        Compute the HD95 loss between predicted and target tensors.
-        Parameters:
-            pred (torch.Tensor): The predicted tensor (output of the model: Raw logits).
-            target (torch.Tensor): The target tensor.
+    def forward(self, logits, dist_maps):
+        """
+        Args:
+            logits (torch.Tensor): Raw output from the model (before sigmoid), shape (B, 1, H, W)
+            dist_maps (torch.Tensor): Precomputed distance maps for the ground truth masks, shape (B, 1, H, W).
         Returns:
-            torch.Tensor: The HD95 loss.
-        '''        
-        # Convert raw logits from the U-Net into probabilities (0 to 1)
-        pred = torch.sigmoid(pred)
-
-        # Calculate HD95 using MONAI
-        # percentile=95 computes the 95th percentile
-        # include_background=True assuming the passed channel directly contains the target mask
-        hd95_tensor = compute_hausdorff_distance(
-            y_pred=pred, 
-            y=target, 
-            include_background=True, 
-            percentile=95
-        )
-
-        # Return the average HD95 score for the batch as a loss (higher HD95 means worse performance)
-        return hd95_tensor.mean()
+            torch.Tensor: The scalar loss value.
+        """
+        # Convert logits to probabilities using sigmoid
+        probs = torch.sigmoid(logits)
+        
+        # Multiply element-wise between probabilities and distance maps to get the boundary loss
+        loss = probs * dist_maps
+        
+        # Return the mean of the entire batch
+        return loss.mean()

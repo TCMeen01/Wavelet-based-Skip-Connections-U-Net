@@ -154,8 +154,8 @@ def random_visualize_dtcwt(dir_path, device):
     ax_yl.axis('off')
     
     # 3. Plot Reconstructed Image from DTCWT to verify correctness
-    a = 1
-    b = 10
+    a = 0.2
+    b = 1
     reconstructed = dtcwt.inverse(a*yl, tuple(b*comp for comp in yh_real), tuple(b*comp for comp in yh_imag)).squeeze().cpu().numpy()
     reconstructed = (reconstructed * 0.5) + 0.5 # Denormalize for visualization
     ax_recon = fig.add_subplot(2, 6, (5, 6))

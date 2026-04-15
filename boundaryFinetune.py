@@ -11,12 +11,13 @@ from Unet.Unet import Unet
 from Unet.WTSC_Unet import DWTSC_UNet, DTCWTSC_UNet
 from DataHandle.DataLoader import *
 from DataHandle.Dataset import *
-from Utils.objectives import DiceLoss
+from Utils.objectives import BoundaryLoss, DiceLoss
 from Utils.utils import *
 
-def train_model(model, train_loader, val_loader, epochs, learning_rate, criterion, device):
+def finetune_model(model, train_loader, val_loader, epochs, learning_rate, criterion, device, 
+                   alpha_begin=0.01, alpha_end=0.05, alpha_step=0.002, boundary_loss=BoundaryLoss()):
     """
-    Train a PyTorch model for Binary Image Segmentation.
+    Fine-tune a PyTorch model for Binary Image Segmentation. Using Boundary Loss with BCE + Dice Loss.
 
     Args:
         model (nn.Module): The neural network model (e.g., U-Net).
@@ -26,6 +27,10 @@ def train_model(model, train_loader, val_loader, epochs, learning_rate, criterio
         learning_rate (float): Learning rate for the optimizer.
         criterion (nn.Module): Loss function (e.g., BCEWithLogitsLoss, DiceLoss).
         device (torch.device): Device to run the training on ('cuda' or 'cpu').
+        alpha_begin (float): Initial weight for the boundary loss.
+        alpha_end (float): Maximum weight for the boundary loss.
+        alpha_step (float): Step size to increase alpha each epoch.
+        boundary_loss (nn.Module): The boundary loss function to use (default is BoundaryLoss()).
 
     Returns:
         tuple: (best_model_state, history)
@@ -55,7 +60,12 @@ def train_model(model, train_loader, val_loader, epochs, learning_rate, criterio
     
     print(f'Training using device: {device} ...\n' + '-'*60)
     
+    alpha = alpha_begin  # Initialize alpha for boundary loss
+
     for epoch in range(epochs):
+        # Update alpha for boundary loss based on the current epoch
+        alpha = min(alpha + alpha_step, alpha_end)
+
         # Record the start time of the current epoch
         start_time = time.time()
         
@@ -67,13 +77,15 @@ def train_model(model, train_loader, val_loader, epochs, learning_rate, criterio
         # Wrap train_loader with tqdm for a visual progress bar
         train_pbar = tqdm(train_loader, desc=f"Epoch {epoch+1:03d}/{epochs:03d} [Train]", leave=False)
         
-        for images, masks in train_pbar:
-            images, masks = images.to(device), masks.to(device)
-            
+        for images, masks, dist_maps in train_pbar:
+            images, masks, dist_maps = images.to(device), masks.to(device), dist_maps.to(device)
+
             # Forward pass
             outputs = model(images) # raw logits
-            loss = criterion(outputs, masks)
-            
+            loss_area = criterion(outputs, masks)
+            loss_boundary = boundary_loss(outputs, dist_maps)
+            loss = loss_area + alpha * loss_boundary
+
             # Backward pass and optimization
             optimizer.zero_grad()
             loss.backward()      
@@ -96,13 +108,15 @@ def train_model(model, train_loader, val_loader, epochs, learning_rate, criterio
         val_pbar = tqdm(val_loader, desc=f"Epoch {epoch+1:03d}/{epochs:03d} [Val]  ", leave=False)
         
         with torch.no_grad(): 
-            for images, masks in val_pbar:
-                images, masks = images.to(device), masks.to(device)
-                
+            for images, masks, dist_maps in val_pbar:
+                images, masks, dist_maps = images.to(device), masks.to(device), dist_maps.to(device)
+
                 # Forward pass only (no gradients needed)
                 outputs = model(images) # raw logits
-                loss = criterion(outputs, masks)
-                
+                loss_area = criterion(outputs, masks)
+                loss_boundary = boundary_loss(outputs, dist_maps)
+                loss = loss_area + alpha * loss_boundary
+
                 # Accumulate metrics
                 running_val_loss += loss.item()
                 running_val_dice += dice_score(outputs, masks)
@@ -196,9 +210,9 @@ if __name__ == "__main__":
     else:
         raise ValueError("Unsupported criterion. Please choose 'BCEWithLogitsLoss' or 'DiceLoss'.")
     
-    best_state, history = train_model(model, train_loader, val_loader, 
-                                      epochs=args.n_epochs, learning_rate=args.lr, 
-                                      criterion=criterion, device=device)
+    best_state, history = finetune_model(model, train_loader, val_loader, 
+                                         epochs=args.n_epochs, learning_rate=args.lr, 
+                                         criterion=criterion, device=device)
     
     # Save the best model if a save path is provided
     if args.model_save_path:
