@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import random
-
+import os
+from PIL import Image
+from torchvision import transforms
 from Utils.metrics import dice_score
 import numpy as np
 from scipy.ndimage import distance_transform_edt
@@ -106,3 +108,51 @@ def plot_training_history(history):
 
     plt.tight_layout()
     plt.show()
+
+def load_random_rgb_image_tensor(dir_path, device):
+    """
+    Randomly select and load an image from a directory as an RGB PyTorch tensor.
+
+    Args:
+        dir_path (str): The directory containing the input images.
+        device (torch.device): The device (CPU or CUDA) to load the tensor onto.
+
+    Returns:
+        img_tensor_rgb (torch.Tensor): The RGB image tensor of shape (1, 3, 256, 256).
+        img_path (str): The absolute path to the selected image file.
+    """
+    valid_exts = ('.png', '.jpg', '.jpeg', '.bmp', '.tif')
+    all_files = [f for f in os.listdir(dir_path) if f.lower().endswith(valid_exts)]
+    
+    if not all_files:
+        raise FileNotFoundError(f"No valid images found in directory: {dir_path}")
+        
+    random_file = random.choice(all_files)
+    random_file = all_files[20]
+    img_path = os.path.join(dir_path, random_file)
+    
+    # Force loading as RGB image
+    img = Image.open(img_path).convert('RGB') 
+    
+    # Resize to a power of 2 (e.g., 256x256)
+    transform = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5]*3, [0.5]*3)
+    ])
+    
+    # Add batch dimension and move to specified device
+    img_tensor_rgb = transform(img).unsqueeze(0).to(device) # Shape: (1, 3, 256, 256)
+    
+    return img_tensor_rgb, img_path
+
+def convert_rgb_to_gray_tensor(rgb_tensor):
+    """
+    Convert an RGB tensor (N, 3, H, W) to a Grayscale tensor (N, 1, H, W)
+    using the standard luminosity method.
+    """
+    # Standard weighting for human eye sensitivity: R: 0.299, G: 0.587, B: 0.114
+    gray_tensor = 0.299 * rgb_tensor[:, 0:1, :, :] + \
+                  0.587 * rgb_tensor[:, 1:2, :, :] + \
+                  0.114 * rgb_tensor[:, 2:3, :, :]
+    return gray_tensor

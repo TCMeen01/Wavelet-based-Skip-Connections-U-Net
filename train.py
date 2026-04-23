@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from Unet.Unet import Unet
-from Unet.WTSC_Unet import DWTSC_UNet, DTCWTSC_UNet
+from Unet.WTSC_Unet import DTCWTSC_UNet
 from DataHandle.DataLoader import *
 from DataHandle.Dataset import *
 from Utils.objectives import DiceLoss
@@ -149,7 +149,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train UNet or DWTSC-UNet")
 
     # Required args
-    parser.add_argument("--model", type=str, required=True, help="Model architecture to train ('Unet' or 'DWTSC_UNet' or 'DTCWTSC_UNet')")
+    parser.add_argument("--model", type=str, required=True, help="Model architecture to train ('Unet' or 'DTCWTSC_UNet')")
     parser.add_argument("--dataset_name", type=str, required=True, help="Name of the dataset ('ISIC' or 'Kvasir')")
     parser.add_argument("--dataset_path", type=str, required=True, help="Path to the dataset directory")
 
@@ -162,6 +162,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cpu", choices=['cpu', 'gpu'], help="Device to train on")
     parser.add_argument("--criterion", type=str, default="BCEWithLogitsLoss", choices=['BCEWithLogitsLoss', 'DiceLoss'], help="Loss function to use for training")
     parser.add_argument("--model_save_path", type=str, help="Path to save the trained model. If not provided, the model will not be saved.")
+    parser.add_argument("--Wavelet_Level", type=int, default=1, help="The level of wavelet decomposition to use for the DTCWTSC-UNet model (default is 1, which means only the first level of wavelet decomposition will be used)")
 
     args = parser.parse_args()
 
@@ -178,12 +179,10 @@ if __name__ == "__main__":
     # Initialize model
     if args.model.lower() == 'unet':
         model = Unet(n_channels=3, n_classes=1)
-    elif args.model.lower() == 'dwtsc_unet':
-        model = DWTSC_UNet(n_channels=3, n_classes=1)
     elif args.model.lower() == 'dtcwtsc_unet':
-        model = DTCWTSC_UNet(n_channels=3, n_classes=1)
+        model = DTCWTSC_UNet(n_channels=3, n_classes=1, wavelet_level=args.Wavelet_Level)
     else:
-        raise ValueError("Unsupported model architecture. Please choose 'Unet' or 'DWTSC_UNet' or 'DTCWTSC_UNet'.")
+        raise ValueError("Unsupported model architecture. Please choose 'Unet' or 'DTCWTSC_UNet'.")
 
     # Set device
     device = torch.device("cuda" if args.device == "gpu" and torch.cuda.is_available() else "cpu")

@@ -7,7 +7,7 @@ import argparse
 import torch
 from DataHandle.DataLoader import get_transforms
 from Utils.metrics import dice_score, iou_score, hd95_score
-from Unet.WTSC_Unet import DTCWTSC_UNet, DWTSC_UNet
+from Unet.WTSC_Unet import DTCWTSC_UNet
 from Unet.Unet import Unet
 
 import warnings
@@ -108,7 +108,8 @@ if __name__ == "__main__":
                         help="Device to run inference on")
     parser.add_argument("--img_size", type=int, default=256, 
                         help="Size to which the input images should be resized (must match the training size)")
-
+    parser.add_argument("--Wavelet_Level", type=int, default=1,
+                        help="The level of wavelet decomposition to use for the DTCWTSC-UNet model (default is 1, which means only the first level of wavelet decomposition will be used)")
     args = parser.parse_args()
 
     # Set device
@@ -119,7 +120,7 @@ if __name__ == "__main__":
     if args.model_type.lower() == 'unet':
         model = Unet(n_channels=3, n_classes=1)
     elif args.model_type.lower() == 'dtcwtsc_unet':
-        model = DTCWTSC_UNet(n_channels=3, n_classes=1)
+        model = DTCWTSC_UNet(n_channels=3, n_classes=1, wavelet_level=args.Wavelet_Level)
     model.to(device)
 
     # Load the model weights from the specified checkpoint

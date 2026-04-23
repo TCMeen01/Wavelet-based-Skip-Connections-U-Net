@@ -1,117 +1,11 @@
 import os
-import random
+import numpy as np
 import torch
 import matplotlib.pyplot as plt
-from PIL import Image
-from torchvision import transforms
 
-from Wavelet.DWT import DWTransform
 from Wavelet.DTCWT import DTCWTransform
 
-def load_random_rgb_image_tensor(dir_path, device):
-    """
-    Randomly select and load an image from a directory as an RGB PyTorch tensor.
-
-    Args:
-        dir_path (str): The directory containing the input images.
-        device (torch.device): The device (CPU or CUDA) to load the tensor onto.
-
-    Returns:
-        img_tensor_rgb (torch.Tensor): The RGB image tensor of shape (1, 3, 256, 256).
-        img_path (str): The absolute path to the selected image file.
-    """
-    valid_exts = ('.png', '.jpg', '.jpeg', '.bmp', '.tif')
-    all_files = [f for f in os.listdir(dir_path) if f.lower().endswith(valid_exts)]
-    
-    if not all_files:
-        raise FileNotFoundError(f"No valid images found in directory: {dir_path}")
-        
-    random_file = random.choice(all_files)
-    random_file = all_files[20]
-    img_path = os.path.join(dir_path, random_file)
-    
-    # Force loading as RGB image
-    img = Image.open(img_path).convert('RGB') 
-    
-    # Resize to a power of 2 (e.g., 256x256)
-    transform = transforms.Compose([
-        transforms.Resize((256, 256)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.5]*3, [0.5]*3)
-    ])
-    
-    # Add batch dimension and move to specified device
-    img_tensor_rgb = transform(img).unsqueeze(0).to(device) # Shape: (1, 3, 256, 256)
-    
-    return img_tensor_rgb, img_path
-
-def convert_rgb_to_gray_tensor(rgb_tensor):
-    """
-    Convert an RGB tensor (N, 3, H, W) to a Grayscale tensor (N, 1, H, W)
-    using the standard luminosity method.
-    """
-    # Standard weighting for human eye sensitivity: R: 0.299, G: 0.587, B: 0.114
-    gray_tensor = 0.299 * rgb_tensor[:, 0:1, :, :] + \
-                  0.587 * rgb_tensor[:, 1:2, :, :] + \
-                  0.114 * rgb_tensor[:, 2:3, :, :]
-    return gray_tensor
-
-def random_visualize_dwt(dir_path, device):
-    """
-    Randomly select an RGB image, convert to Grayscale, and visualize its 
-    Discrete Wavelet Transform (DWT) outputs (LL, LH, HL, HH subbands).
-    """
-    img_rgb, img_path = load_random_rgb_image_tensor(dir_path, device)
-    
-    # Convert RGB to Grayscale for Wavelet Processing
-    img_gray = convert_rgb_to_gray_tensor(img_rgb)
-    
-    # Initialize DWT model using 'db2' filter
-    dwt = DWTransform(wave='db2').to(device)
-    
-    # Perform forward DWT on the grayscale image
-    with torch.no_grad():
-        ll, (lh, hl, hh) = dwt(img_gray)
-        
-    # Convert tensors to numpy arrays
-    # .squeeze() removes batch and channel dims, except for RGB which keeps channels
-    img_rgb_np = img_rgb.squeeze().permute(1, 2, 0).cpu().numpy() # (H, W, 3) for plt.imshow
-    img_rgb_np = (img_rgb_np * 0.5) + 0.5 # Denormalize for visualization
-
-    ll_np = ll.squeeze().cpu().numpy()
-    lh_np = lh.squeeze().cpu().numpy()
-    hl_np = hl.squeeze().cpu().numpy()
-    hh_np = hh.squeeze().cpu().numpy()
-    
-    # Setup matplotlib figure (1 row, 6 columns to include Original RGB)
-    fig, axes = plt.subplots(1, 6, figsize=(12, 4))
-    fig.suptitle(f"DWT (db2) - {os.path.basename(img_path)}", fontsize=14)
-    
-    titles = ['Original RGB', 'Low-Frequency (LL)', 'Horizontal (LH)', 'Vertical (HL)', 'Diagonal (HH)', 'Reconstructed']
-    
-    # 1. Plot Original RGB
-    axes[0].imshow(img_rgb_np)
-    axes[0].set_title(titles[0])
-    axes[0].axis('off')
-    
-    # 2. Plot Wavelet Features
-    images_wavelet = [ll_np, lh_np, hl_np, hh_np]
-    for i in range(4):
-        axes[i+1].imshow(images_wavelet[i], cmap='gray')
-        axes[i+1].set_title(titles[i+1])
-        axes[i+1].axis('off')
-    
-    # 3. Reconstruct the image from wavelet components to verify correctness
-    a = 0.5
-    b = 100
-    reconstructed = dwt.inverse(a*ll, (b*lh, b*hl, b*hh)).squeeze().cpu().numpy()
-    reconstructed = (reconstructed * 0.5) + 0.5 # Denormalize for visualization
-    axes[5].imshow(reconstructed, cmap='gray')
-    axes[5].set_title(titles[5])
-    axes[5].axis('off')
-
-    plt.tight_layout()
-    plt.show()
+from Utils.utils import load_random_rgb_image_tensor, convert_rgb_to_gray_tensor
 
 def random_visualize_dtcwt(dir_path, device):
     """
@@ -124,11 +18,13 @@ def random_visualize_dtcwt(dir_path, device):
     img_gray = convert_rgb_to_gray_tensor(img_rgb)
     
     # Initialize DTCWT model
-    dtcwt = DTCWTransform(biort='near_sym_b').to(device)
+    level = 4
+    dtcwt = DTCWTransform(level=level, biort='near_sym_b').to(device)
     
     # Perform forward DTCWT on the grayscale image
     with torch.no_grad():
-        yl, yh_real, yh_imag = dtcwt(img_gray)
+        yl, yh = dtcwt(img_gray)
+        yh_real, yh_imag = dtcwt.get_real_imag(yh, level=1)
         
     # Convert to numpy arrays
     img_rgb_np = img_rgb.squeeze().permute(1, 2, 0).cpu().numpy()
@@ -154,10 +50,10 @@ def random_visualize_dtcwt(dir_path, device):
     ax_yl.axis('off')
     
     # 3. Plot Reconstructed Image from DTCWT to verify correctness
-    a = 0.2
+    a = 0.1
     b = 1
-    reconstructed = dtcwt.inverse(a*yl, tuple(b*comp for comp in yh_real), tuple(b*comp for comp in yh_imag)).squeeze().cpu().numpy()
-    reconstructed = (reconstructed * 0.5) + 0.5 # Denormalize for visualization
+    reconstructed = dtcwt.inverse(a*yl, b*yh).squeeze().cpu().numpy()
+    reconstructed = np.abs(reconstructed)
     ax_recon = fig.add_subplot(2, 6, (5, 6))
     ax_recon.imshow(reconstructed, cmap='gray')
     ax_recon.set_title('Reconstructed from DTCWT')
@@ -169,8 +65,7 @@ def random_visualize_dtcwt(dir_path, device):
         # Extract individual directional band and calculate magnitude
         real_band = yh_real[i].squeeze().cpu().numpy()
         imag_band = yh_imag[i].squeeze().cpu().numpy()
-        magnitude = (real_band**2 + imag_band**2)**0.5
-        
+        magnitude = np.sqrt(real_band**2 + imag_band**2)
         ax = fig.add_subplot(2, 6, i + 7) # Second row
         ax.imshow(magnitude, cmap='gray')
         ax.set_title(f'High-Freq {angles[i]}')
@@ -179,13 +74,61 @@ def random_visualize_dtcwt(dir_path, device):
     plt.tight_layout()
     plt.show()
 
+def random_compare_dtcwt(dir_path, level_1, level_2, device):
+    '''
+    Randomly select an RGB image, convert to Grayscale, and compare the DTCWT outputs at two different levels of decomposition.
+
+    '''
+    img_rgb, img_path = load_random_rgb_image_tensor(dir_path, device)
+    
+    # Convert RGB to Grayscale for Wavelet Processing
+    img_gray = convert_rgb_to_gray_tensor(img_rgb)
+    
+    # Initialize DTCWT models
+    dtcwt_1 = DTCWTransform(level=level_1, biort='near_sym_b').to(device)
+    dtcwt_2 = DTCWTransform(level=level_2, biort='near_sym_b').to(device)
+    
+    # Perform forward DTCWT on the grayscale image
+    with torch.no_grad():
+        yl_1, yh_1 = dtcwt_1(img_gray)
+        yl_2, yh_2 = dtcwt_2(img_gray)
+
+    # Denoising the low-frequency components
+    a = 0
+    b = 1
+
+    reconstructed_1 = dtcwt_1.inverse(a*yl_1, b*yh_1).squeeze().cpu().numpy()
+    reconstructed_2 = dtcwt_2.inverse(a*yl_2, b*yh_2).squeeze().cpu().numpy()
+
+    # Visualize the original image and the two reconstructions
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    # fig.suptitle(f"DTCWT Comparison - {os.path.basename(img_path)}", fontsize=16)
+    fig.suptitle(f"DTCWT Comparison", fontsize=16)
+    axes[0].imshow(img_rgb.squeeze().permute(1, 2, 0).cpu().numpy() * 0.5 + 0.5)
+    axes[0].set_title('Original RGB')
+    axes[0].axis('off')
+
+    axes[1].imshow(np.abs(reconstructed_1), cmap='gray')
+    axes[1].set_title(f'Reconstructed (Level {level_1})')
+    axes[1].axis('off')
+
+    axes[2].imshow(np.abs(reconstructed_2), cmap='gray')
+    axes[2].set_title(f'Reconstructed (Level {level_2})')
+    axes[2].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+    plt.savefig(f"Datasets/DTCWT_Comparison_{os.path.basename(img_path)}")
+
 # ==================== MAIN ====================
 if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dataset_dir = 'Datasets\Kvasir-SEG\images'
-    
-    # print("Visualizing DWT...")
-    # random_visualize_dwt(dataset_dir, device)
-    
-    print("Visualizing DTCWT...")
-    random_visualize_dtcwt(dataset_dir, device)
+    # dataset_dir = 'Datasets\ISIC-2018'
+
+    # print("Visualizing DTCWT...")
+    # random_visualize_dtcwt(dataset_dir, device)
+
+    print("Comparing DTCWT at different levels...")
+    random_compare_dtcwt(dataset_dir, level_1=1, level_2=4, device=device)
