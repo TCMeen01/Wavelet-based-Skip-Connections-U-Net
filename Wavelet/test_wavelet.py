@@ -7,7 +7,7 @@ from Wavelet.DTCWT import DTCWTransform
 
 from Utils.utils import load_random_rgb_image_tensor, convert_rgb_to_gray_tensor
 
-def random_visualize_dtcwt(dir_path, device):
+def random_visualize_dtcwt(dir_path, low_pass_weight, device):
     """
     Randomly select an RGB image, convert to Grayscale, and visualize its 
     Dual-Tree Complex Wavelet Transform (DTCWT) magnitude outputs.
@@ -50,9 +50,7 @@ def random_visualize_dtcwt(dir_path, device):
     ax_yl.axis('off')
     
     # 3. Plot Reconstructed Image from DTCWT to verify correctness
-    a = 0.1
-    b = 1
-    reconstructed = dtcwt.inverse(a*yl, b*yh).squeeze().cpu().numpy()
+    reconstructed = dtcwt.inverse(low_pass_weight * yl, yh).squeeze().cpu().numpy()
     reconstructed = np.abs(reconstructed)
     ax_recon = fig.add_subplot(2, 6, (5, 6))
     ax_recon.imshow(reconstructed, cmap='gray')
@@ -74,7 +72,7 @@ def random_visualize_dtcwt(dir_path, device):
     plt.tight_layout()
     plt.show()
 
-def random_compare_dtcwt(dir_path, level_1, level_2, device):
+def random_compare_dtcwt(dir_path, level_1, level_2, low_pass_weight, device):
     '''
     Randomly select an RGB image, convert to Grayscale, and compare the DTCWT outputs at two different levels of decomposition.
 
@@ -94,11 +92,8 @@ def random_compare_dtcwt(dir_path, level_1, level_2, device):
         yl_2, yh_2 = dtcwt_2(img_gray)
 
     # Denoising the low-frequency components
-    a = 0
-    b = 1
-
-    reconstructed_1 = dtcwt_1.inverse(a*yl_1, b*yh_1).squeeze().cpu().numpy()
-    reconstructed_2 = dtcwt_2.inverse(a*yl_2, b*yh_2).squeeze().cpu().numpy()
+    reconstructed_1 = dtcwt_1.inverse(low_pass_weight * yl_1, yh_1).squeeze().cpu().numpy()
+    reconstructed_2 = dtcwt_2.inverse(low_pass_weight * yl_2, yh_2).squeeze().cpu().numpy()
 
     # Visualize the original image and the two reconstructions
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -117,9 +112,8 @@ def random_compare_dtcwt(dir_path, level_1, level_2, device):
     axes[2].axis('off')
 
     plt.tight_layout()
+    # plt.savefig(f"Datasets/DTCWT_Comparison.png")
     plt.show()
-
-    plt.savefig(f"Datasets/DTCWT_Comparison_{os.path.basename(img_path)}")
 
 # ==================== MAIN ====================
 if __name__ == "__main__":
@@ -128,7 +122,8 @@ if __name__ == "__main__":
     # dataset_dir = 'Datasets\ISIC-2018'
 
     # print("Visualizing DTCWT...")
-    # random_visualize_dtcwt(dataset_dir, device)
+    # random_visualize_dtcwt(dataset_dir, low_pass_weight=0.1, device=device)
 
     print("Comparing DTCWT at different levels...")
-    random_compare_dtcwt(dataset_dir, level_1=1, level_2=4, device=device)
+    random_compare_dtcwt(dataset_dir, level_1=1, level_2=4, 
+                         low_pass_weight=0.0, device=device)

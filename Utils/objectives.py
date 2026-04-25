@@ -38,13 +38,13 @@ class DiceLoss(nn.Module):
     
 class BCEDiceLoss(nn.Module):
     """
-    Combine BCE and Dice Loss for training binary segmentation models.
+    Combine BCE and Dice Loss (Default 0.3* BCE + 0.7* Dice) for training binary segmentation models.
     """
-    def __init__(self, weight_bce=0.5, weight_dice=0.5, smooth=1e-6):
+    def __init__(self, weight_bce=0.3, smooth=1e-6):
         super().__init__()
         self.weight_bce = weight_bce
-        self.weight_dice = weight_dice
-        
+        self.weight_dice = 1 - weight_bce
+
         # BCE loss (with raw logit)
         self.bce_loss = nn.BCEWithLogitsLoss()
         
@@ -69,28 +69,3 @@ class BCEDiceLoss(nn.Module):
         combined_loss = (self.weight_bce * bce) + (self.weight_dice * dice)
         
         return combined_loss
-    
-class BoundaryLoss(nn.Module):
-    '''
-    Boundary Loss for binary segmentation tasks, which penalizes predictions based on their distance from the true boundary.
-    This loss is used for fine-tuning the model to better capture the boundaries of the segmented objects.
-    '''
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, logits, dist_maps):
-        """
-        Args:
-            logits (torch.Tensor): Raw output from the model (before sigmoid), shape (B, 1, H, W)
-            dist_maps (torch.Tensor): Precomputed distance maps for the ground truth masks, shape (B, 1, H, W).
-        Returns:
-            torch.Tensor: The scalar loss value.
-        """
-        # Convert logits to probabilities using sigmoid
-        probs = torch.sigmoid(logits)
-        
-        # Multiply element-wise between probabilities and distance maps to get the boundary loss
-        loss = probs * dist_maps
-        
-        # Return the mean of the entire batch
-        return loss.mean()

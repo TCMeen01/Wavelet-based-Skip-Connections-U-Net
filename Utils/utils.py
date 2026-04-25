@@ -3,27 +3,6 @@ import random
 import os
 from PIL import Image
 from torchvision import transforms
-from Utils.metrics import dice_score
-import numpy as np
-from scipy.ndimage import distance_transform_edt
-
-def compute_distance_map(mask_np):
-    """
-    Compute the distance map for a given binary mask.
-    Args:
-        mask_np (numpy.ndarray): A 2D binary numpy array where foreground pixels are 1 and background pixels are 0.
-    Returns:
-        numpy.ndarray: A 2D array of the same shape as mask_np containing the distance map values.
-    """
-    posmask = mask_np.astype(bool)
-    
-    if posmask.any(): # If there are any foreground pixels
-        negmask = ~posmask
-        res = distance_transform_edt(negmask) * negmask - (distance_transform_edt(posmask) - 1) * posmask
-    else: # If there are no foreground pixels
-        res = np.zeros_like(mask_np)
-        
-    return res.astype(np.float32)
 
 def random_visualize(loader, title="Dataset Sample", n_samples=3):
     '''
@@ -128,7 +107,7 @@ def load_random_rgb_image_tensor(dir_path, device):
         raise FileNotFoundError(f"No valid images found in directory: {dir_path}")
         
     random_file = random.choice(all_files)
-    random_file = all_files[20]
+    # random_file = all_files[20] # For debugging: use a specific file instead of random selection
     img_path = os.path.join(dir_path, random_file)
     
     # Force loading as RGB image

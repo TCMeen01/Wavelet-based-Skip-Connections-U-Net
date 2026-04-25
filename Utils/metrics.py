@@ -50,10 +50,10 @@ def iou_score(pred, target, smooth=1e-6):
     pred = pred.view(-1)
     target = target.view(-1)
 
-    # Intersection: |A ∩ B|
+    # Intersection
     intersection = (pred * target).sum()
 
-    # Union: |A ∪ B| = |A| + |B| - |A ∩ B|
+    # Union
     union = pred.sum() + target.sum() - intersection
 
     # Compute IoU Score

@@ -2,7 +2,7 @@ import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 import time
 import copy
-import tqdm
+from tqdm import tqdm
 import argparse
 import torch
 import torch.nn as nn
@@ -11,8 +11,9 @@ from Unet.Unet import Unet
 from Unet.WTSC_Unet import DTCWTSC_UNet
 from DataHandle.DataLoader import *
 from DataHandle.Dataset import *
-from Utils.objectives import DiceLoss
+from Utils.objectives import *
 from Utils.utils import *
+from Utils.metrics import *
 
 def train_model(model, train_loader, val_loader, epochs, learning_rate, criterion, device):
     """
@@ -158,9 +159,9 @@ if __name__ == "__main__":
     parser.add_argument("--img_size", type=int, default=256, help="Size to resize images and masks (assumes square size img_size x img_size)")
     parser.add_argument("--num_workers", type=int, default=4, help="Number of CPU subprocesses for data loading")
     parser.add_argument("--n_epochs", type=int, default=50, help="Number of training epochs")
-    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate for optimizer")
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate for optimizer")
     parser.add_argument("--device", type=str, default="cpu", choices=['cpu', 'gpu'], help="Device to train on")
-    parser.add_argument("--criterion", type=str, default="BCEWithLogitsLoss", choices=['BCEWithLogitsLoss', 'DiceLoss'], help="Loss function to use for training")
+    parser.add_argument("--criterion", type=str, default="BCELoss", help="Loss function to use for training")
     parser.add_argument("--model_save_path", type=str, help="Path to save the trained model. If not provided, the model will not be saved.")
     parser.add_argument("--Wavelet_Level", type=int, default=1, help="The level of wavelet decomposition to use for the DTCWTSC-UNet model (default is 1, which means only the first level of wavelet decomposition will be used)")
 
@@ -188,12 +189,14 @@ if __name__ == "__main__":
     device = torch.device("cuda" if args.device == "gpu" and torch.cuda.is_available() else "cpu")
 
     # Train the model
-    if args.criterion == "BCEWithLogitsLoss":
+    if args.criterion.lower() == "bceloss":
         criterion = nn.BCEWithLogitsLoss()
-    elif args.criterion == "DiceLoss":
+    elif args.criterion.lower() == "diceloss":
         criterion = DiceLoss()
+    elif args.criterion.lower() == "bcediceloss":
+        criterion = BCEDiceLoss(weight_bce=0.3, smooth=1e-6)
     else:
-        raise ValueError("Unsupported criterion. Please choose 'BCEWithLogitsLoss' or 'DiceLoss'.")
+        raise ValueError("Unsupported criterion. Please choose 'BCELoss', 'DiceLoss', or 'BCEDiceLoss'.")
     
     best_state, history = train_model(model, train_loader, val_loader, 
                                       epochs=args.n_epochs, learning_rate=args.lr, 

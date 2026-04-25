@@ -1,10 +1,10 @@
+torch
+numpy<2
 matplotlib
 tqdm
-time
-copy
-pytorch
-pytorch_wavelets
-Pywavelets
-albumentations
+Pillow
+monai
 scikit-learn
-numpy<2
+albumentations
+pytorch-wavelets
+PyWavelets

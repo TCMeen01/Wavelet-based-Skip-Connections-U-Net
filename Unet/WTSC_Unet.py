@@ -68,6 +68,8 @@ class DTCWTSC_UNet(nn.Module):
             # Compress the encoder feature map to a single channel (grayscale) for wavelet processing
             compressed_feature = self.compress[idx](encoder_feature)
 
+            # ========================= WAVELET BACKGROUND DENOISING MODULE =========================
+            
             # Apply wavelet transform to the corresponding compressed feature map for skip connection
             yl, yh = self.wavelet(compressed_feature)  # yl: low-frequency, yh: high-frequency components
 
@@ -80,6 +82,8 @@ class DTCWTSC_UNet(nn.Module):
             # Construct Attention Map
             edge_map = torch.abs(features_weighted)
             attention_map = torch.sigmoid(edge_map * self.edge_scales[idx])
+
+            # =========================================================================================
 
             # Apply the attention map to the original encoder feature map (before compression) to get the final weighted skip connection
             features_weighted = encoder_feature + (encoder_feature * attention_map)
